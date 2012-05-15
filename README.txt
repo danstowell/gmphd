@@ -8,7 +8,7 @@ This is a Python implementation of the Gaussian mixture PHD filter
 (probability hypothesis density filter) described in:
 
 B. N. Vo and W. K. Ma. The gaussian mixture probability hypothesis density filter. 
-   IEEE Transactions on Signal Processing, 54(11):4091Ð4104, 2006.
+   IEEE Transactions on Signal Processing, 54(11):4091--4104, 2006.
    DOI: 10.1109/TSP.2006.881190
 
 It requires Numpy, and the demo scripts require matplotlib.
