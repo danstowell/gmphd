@@ -1,8 +1,8 @@
-				   ======================================
-								   gmphd
-				   GM-PHD filter implementation in python
-							  by Dan Stowell
-				   ======================================
+                   ======================================
+                                   gmphd
+                   GM-PHD filter implementation in python
+                              by Dan Stowell
+                   ======================================
 
 This is a Python implementation of the Gaussian mixture PHD filter
 (probability hypothesis density filter) described in:
