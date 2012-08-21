@@ -24,9 +24,11 @@ This file is part of gmphd, GM-PHD filter in python by Dan Stowell.
     along with gmphd.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+simplesum = sum   # we want to be able to use "pure" sum not numpy (shoulda namespaced)
 from numpy import *
 import numpy.linalg
 from copy import deepcopy
+from operator import attrgetter
 
 myfloat = float64
 
@@ -40,21 +42,21 @@ class GmphdComponent:
 		self.cov    = array(cov, dtype=myfloat, ndmin=2)
 		self.loc    = reshape(self.loc, (size(self.loc), 1)) # enforce column vec
 		self.cov    = reshape(self.cov, (size(self.loc), size(self.loc))) # ensure shape matches loc shape
+		# precalculated values for evaluating gaussian:
+		k = len(self.loc)
+		self.dmv_part1 = (2.0 * pi) ** (-k * 0.5)
+		self.dmv_part2 = power(numpy.linalg.det(self.cov), -0.5)
+		self.invcov = numpy.linalg.inv(self.cov)
 
-def sampleGm(complist):
-	"Given a list of GmphdComponents, randomly samples a value from the density they represent"
-	weights = array([x.weight for x in complist])
-	weights = weights / sum(weights)   # Weights aren't externally forced to sum to one
-	choice = random.random()
-	cumulative = 0.0
-	for i,w in enumerate(weights):
-		cumulative += w
-		if choice <= cumulative:
-			# Now we sample from the chosen component and return a value
-			comp = complist[i]
-			return random.multivariate_normal(comp.loc.flat, comp.cov)
-	raise RuntimeError("sampleGm terminated without choosing a component")
+	def dmvnorm(self, x):
+		"""Evaluate this multivariate normal component, at a location x.
+		NB this does NOT APPLY THE WEIGHTING, simply for API similarity to the other method with this name."""
+		x = array(x, dtype=myfloat)
+		dev = x - self.loc
+		part3 = exp(-0.5 * dot(dot(dev.T, self.invcov), dev))
+		return self.dmv_part1 * self.dmv_part2 * part3
 
+# We don't always have a GmphdComponent object so:
 def dmvnorm(loc, cov, x):
 	"Evaluate a multivariate normal, given a location (vector) and covariance (matrix) and a position x (vector) at which to evaluate"
 	loc = array(loc, dtype=myfloat)
@@ -66,6 +68,20 @@ def dmvnorm(loc, cov, x):
 	dev = x - loc
 	part3 = exp(-0.5 * dot(dot(dev.T, numpy.linalg.inv(cov)), dev))
 	return part1 * part2 * part3
+
+def sampleGm(complist):
+	"Given a list of GmphdComponents, randomly samples a value from the density they represent"
+	weights = array([x.weight for x in complist])
+	weights = weights / simplesum(weights)   # Weights aren't externally forced to sum to one
+	choice = random.random()
+	cumulative = 0.0
+	for i,w in enumerate(weights):
+		cumulative += w
+		if choice <= cumulative:
+			# Now we sample from the chosen component and return a value
+			comp = complist[i]
+			return random.multivariate_normal(comp.loc.flat, comp.cov)
+	raise RuntimeError("sampleGm terminated without choosing a component")
 
 ################################################################################
 class Gmphd:
@@ -165,7 +181,7 @@ g.gmm
 						))
 	
 			# The Kappa thing (clutter and reweight)
-			weightsum = sum(array([newcomp.weight for newcomp in newgmmpartial]))
+			weightsum = simplesum(newcomp.weight for newcomp in newgmmpartial)
 			reweighter = 1.0 / (self.clutter + weightsum)
 			for newcomp in newgmmpartial:
 				newcomp.weight *= reweighter
@@ -178,20 +194,20 @@ g.gmm
 		"""Prune the GMM. Alters model state.
 		  Based on Table 2 from Vo and Ma paper."""
 		# Truncation is easy
-		weightsums = [sum([comp.weight for comp in self.gmm])]   # diagnostic
+		weightsums = [simplesum(comp.weight for comp in self.gmm)]   # diagnostic
 		sourcegmm = filter(lambda comp: comp.weight > truncthresh, self.gmm)
-		weightsums.append(sum([comp.weight for comp in sourcegmm]))
+		weightsums.append(simplesum(comp.weight for comp in sourcegmm))
 		origlen  = len(self.gmm)
 		trunclen = len(sourcegmm)
 		# Iterate to build the new GMM
 		newgmm = []
 		while len(sourcegmm) > 0:
 			# find weightiest old component and pull it out
-			windex = argmax([comp.weight for comp in sourcegmm])
+			windex = argmax(comp.weight for comp in sourcegmm)
 			weightiest = sourcegmm[windex]
 			sourcegmm = sourcegmm[:windex] + sourcegmm[windex+1:]
 			# find all nearby ones and pull them out
-			distances = [float(dot(dot((comp.loc - weightiest.loc).T, linalg.inv(comp.cov)), comp.loc - weightiest.loc)) for comp in sourcegmm]
+			distances = [float(dot(dot((comp.loc - weightiest.loc).T, comp.invcov), comp.loc - weightiest.loc)) for comp in sourcegmm]
 			dosubsume = array([dist <= mergethresh for dist in distances])
 			subsumed = [weightiest]
 			if any(dosubsume):
@@ -201,7 +217,7 @@ g.gmm
 				subsumed.extend( list(array(sourcegmm)[ dosubsume]) )
 				sourcegmm = list(array(sourcegmm)[~dosubsume])
 			# create unified new component from subsumed ones
-			aggweight = sum(array([comp.weight for comp in subsumed]))
+			aggweight = simplesum(comp.weight for comp in subsumed)
 			newcomp = GmphdComponent( \
 				aggweight,
 				sum(array([comp.weight * comp.loc for comp in subsumed]), 0) / aggweight,
@@ -211,15 +227,17 @@ g.gmm
 			newgmm.append(newcomp)
 
 		# Now ensure the number of components is within the limit, keeping the weightiest
-		newgmm.sort(lambda a, b: cmp(b.weight, a.weight))
+		newgmm.sort(key=attrgetter('weight'))
+		newgmm.reverse()
 		self.gmm = newgmm[:maxcomponents]
-		weightsums.append(sum([comp.weight for comp in newgmm]))
-		weightsums.append(sum([comp.weight for comp in self.gmm]))
+		weightsums.append(simplesum(comp.weight for comp in newgmm))
+		weightsums.append(simplesum(comp.weight for comp in self.gmm))
 		print "prune(): %i -> %i -> %i -> %i" % (origlen, trunclen, len(newgmm), len(self.gmm))
 		print "prune(): weightsums %g -> %g -> %g -> %g" % (weightsums[0], weightsums[1], weightsums[2], weightsums[3])
 		# pruning should not alter the total weightsum (which relates to total num items) - so we renormalise
 		weightnorm = weightsums[0] / weightsums[3]
-		for comp in self.gmm: comp.weight *= weightnorm
+		for comp in self.gmm:
+			comp.weight *= weightnorm
 
 	def extractstates(self, bias=1.0):
 		"""Extract the multiple-target states from the GMM.
@@ -242,7 +260,7 @@ g.gmm
 		This is NOT in the GMPHD paper; added by Dan.
 		"bias" is a multiplier for the est number of items.
 		"""
-		numtoadd = int(round(float(bias) * sum(array([comp.weight for comp in self.gmm]))))
+		numtoadd = int(round(float(bias) * simplesum(comp.weight for comp in self.gmm)))
 		print "bias is %g, numtoadd is %i" % (bias, numtoadd)
 		items = []
 		# A temporary list of peaks which will gradually be decimated as we steal from its highest peaks
@@ -266,12 +284,12 @@ g.gmm
 		"""Evaluates the GMM at a supplied list of points (full dimensionality). 
 		'onlydims' if not nil, marginalises out (well, ignores) the nonlisted dims. All dims must still be listed in the points, so put zeroes in."""
 		return [ \
-			sum(array([comp.weight * dmvnorm(comp.loc, comp.cov, p) for comp in self.gmm])) \
+			simplesum(comp.weight * comp.dmvnorm(p) for comp in self.gmm) \
 				for p in points]
 	def gmmeval1d(self, points, whichdim=0):
 		"Evaluates the GMM at a supplied list of points (1D only)"
 		return [ \
-			sum(array([comp.weight * dmvnorm([comp.loc[whichdim]], [[comp.cov[whichdim][whichdim]]], p) for comp in self.gmm])) \
+			simplesum(comp.weight * dmvnorm([comp.loc[whichdim]], [[comp.cov[whichdim][whichdim]]], p) for comp in self.gmm) \
 				for p in points]
 
 	def gmmevalgrid1d(self, span=None, gridsize=200, whichdim=0):
