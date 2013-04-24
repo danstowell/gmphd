@@ -14,11 +14,22 @@ B. N. Vo and W. K. Ma. The gaussian mixture probability hypothesis density filte
 It requires Numpy, and the demo scripts require matplotlib.
 Tested with Python 2.7.
 
+This implementation was developed as part of the following research:
 
-DIFFERENCES
-===========
+D. Stowell and M. D. Plumbley, Multi-target pitch tracking of vibrato sources in
+   noise using the GM-PHD filter. In: Proceedings of Proceedings of the 5th
+   International Workshop on Machine Learning and Music (MML12), July 2012.
+   http://c4dm.eecs.qmul.ac.uk/papers/2012/StowellPlumbley2012mml.pdf
 
-There are some differences from the GM-PHD algorithm described in the paper:
+The figures in that paper were produced by running the following commands:
+
+* Fig 1: `python syntheticexample.py`
+* Fig 2: `python syntheticroc.py`
+
+DIFFERENCES FROM VO & MA
+========================
+
+There are some differences from the GM-PHD algorithm described in Vo & Ma's paper:
 
 * I have not implemented "spawning" of new targets from old ones, since I don't 
   need it. It would be straightforward to add it - see the original paper.
