@@ -46,32 +46,32 @@ directlystatetospec = dot(obsntypes[obsntype]['obstospec'], obsnmatrix)
 directlystatetospec001 = array([[0., 0., 1.]])
 
 birthintensity1 = birthprob / len(birthgmm)
-print "birthgmm: each component has weight %g" % birthintensity1
+print("birthgmm: each component has weight %g" % birthintensity1)
 for comp in birthgmm:
 	comp.weight = birthintensity1
 
 clutterintensity = clutterintensityfromtot(clutterintensitytot, obsntype)
-print "clutterintensity: %g" % clutterintensity
+print("clutterintensity: %g" % clutterintensity)
 
 ### Create the "true" state and the model:
 trueitems = [TrackableThing(obsnmatrix, transnmatrix) for _ in range(initcount)]
 if initcount != 0:
-	print "True states at init:"
+	print("True states at init:")
 	for item in trueitems:
-		print list(item.state.T)
+		print(list(item.state.T))
 
 g = Gmphd(birthgmm, survivalprob, 0.7, transnmatrix, 1e-9 * array([[1,0,0], [0,1,0], [0,0,1]]), obsnmatrix, obsntypes[obsntype]['noisecov'], clutterintensity)
 
 ###############################################################
 results = []
 for whichiter in range(niters):
-	print "--%i----------------------------------------------------------------------" % whichiter
+	print("--%i----------------------------------------------------------------------" % whichiter)
 	# the "real" state evolves
 	trueitems = updatetrueitems(trueitems, survivalprob, birthprob, obsnmatrix, transnmatrix)
 	# we make our observations of it
 	(obsset, groundtruth) = getobservations(trueitems, clutterintensitytot, obsntype, directlystatetospec, detectprob)
-	print "OBSSET sent to g.update():"
-	print obsset
+	print("OBSSET sent to g.update():")
+	print(obsset)
 	# we run our inference using the observations
 	updateandprune(g, obsset)
 	resultdict = collateresults(g, obsset, bias, obsntype, directlystatetospec, trueitems, groundtruth)
@@ -114,12 +114,12 @@ plt.yticks( arange(0, 60, 10), ('', '', '', '', '', '') )
 
 # Estimated locations:
 ax = fig.add_subplot(513)
-ax.imshow(array([map(lambda x: min(x,1.0), moment['estspec']) for moment in results]).T, aspect='auto', interpolation='nearest', cmap=cm.binary)
+ax.imshow(array([[min(x,1.0) for x in moment['estspec']] for moment in results]).T, aspect='auto', interpolation='nearest', cmap=cm.binary)
 plt.ylabel('Estimated', fontsize='x-small')
 plt.xticks( fontsize='x-small' )
 plt.yticks( arange(0, 60, 10), ('', '', '', '', '', '') )
 ax = fig.add_subplot(514)
-ax.imshow(array([map(lambda x: min(x,1.0), moment['estspec001']) for moment in results]).T, aspect='auto', interpolation='nearest', cmap=cm.binary)
+ax.imshow(array([[min(x,1.0) for x in moment['estspec001']] for moment in results]).T, aspect='auto', interpolation='nearest', cmap=cm.binary)
 plt.ylabel('Estimated\n(no vibrato)', fontsize='x-small')
 plt.xticks( fontsize='x-small' )
 plt.yticks( arange(0, 60, 10), ('', '', '', '', '', '') )
@@ -135,5 +135,5 @@ plt.yticks( fontsize='x-small' )
 
 plt.savefig("plot_testgmphd.pdf", papertype='A4', format='pdf')
 fig.show()
-raw_input("Press Enter to continue...")
+#raw_input("Press Enter to continue...")
 

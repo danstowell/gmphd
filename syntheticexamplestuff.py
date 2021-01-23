@@ -21,7 +21,7 @@ This file is part of gmphd, GM-PHD filter in python by Dan Stowell.
 
 from gmphd import *
 from numpy.random import rand
-
+import numpy as np
 
 # The range of the space
 span = (0, 60)
@@ -83,14 +83,14 @@ def updatetrueitems(trueitems, survivalprob, birthprob, obsnmatrix, transnmatrix
 	"update true state of ensemble - births, deaths, movements"
 	for item in trueitems:
 		item.updateState()
-		if (rand() >= survivalprob) or (int(round(item.observe()[0])) >= span[1]) or (int(round(item.observe()[0])) < span[0]):
+		if (rand() >= survivalprob) or (int(np.round(item.observe()[0])) >= span[1]) or (int(np.round(item.observe()[0])) < span[0]):
 			item.alive = False
-	trueitems = filter(lambda x: x.alive, trueitems)
+	trueitems = [x for x in trueitems if x.alive]
 	if rand() < birthprob:
 		trueitems.append(TrackableThing(obsnmatrix, transnmatrix))
-	print "True states:"
+	print("True states:")
 	for item in trueitems:
-		print list(item.state.flat)
+		print(list(item.state.flat))
 	return trueitems
 
 def getobservations(trueitems, clutterintensitytot, obsntype, directlystatetospec, detectprob):
@@ -99,17 +99,17 @@ def getobservations(trueitems, clutterintensitytot, obsntype, directlystatetospe
 	obsset      = []  # set-valued
 	# clutter
 	numclutter = poissonSample(clutterintensitytot)
-	print "clutter generating %i items" % numclutter
+	print("clutter generating %i items" % numclutter)
 	for _ in range(numclutter):
-		index = int(round(span[0] + rand() * (span[1] - span[0])))
-		clutterslope = int(round(slopespan[0] + rand() * (slopespan[1] - slopespan[0])))
+		index = int(np.round(span[0] + rand() * (span[1] - span[0])))
+		clutterslope = int(np.round(slopespan[0] + rand() * (slopespan[1] - slopespan[0])))
 		if obsntype == 'spect':
 			obsset.append([[index]])  # spectrum-like
 		else:
 			obsset.append([[index-clutterslope], [index+clutterslope]])  # chirp-like
 	# true
 	for item in trueitems:
-		bin = int(round(dot(directlystatetospec, item.state)))   # project state space directly into spec
+		bin = int(np.round(dot(directlystatetospec, item.state)))   # project state space directly into spec
 		if bin > -1 and bin < len(groundtruth):
 			groundtruth[bin] = 1
 		if rand() < detectprob:
@@ -119,11 +119,11 @@ def getobservations(trueitems, clutterintensitytot, obsntype, directlystatetospe
 	return (obsset, groundtruth)
 
 def updateandprune(g, obsset):
-	print "-------------------------------------------------------------------"
+	print("-------------------------------------------------------------------")
 	g.update(obsset) # here we go!
 	g.prune(maxcomponents=50, mergethresh=0.15)
-	print "intensity gmm offsets, after pruning:"
-	print sorted([round(comp.loc[2], 1) for comp in g.gmm])
+	print("intensity gmm offsets, after pruning:")
+	print(sorted([np.round(comp.loc[2], 1) for comp in g.gmm]))
 
 def collateresults(g, obsset, bias, obsntype, directlystatetospec, trueitems, groundtruth):
 	#meh: intensity = g.gmmevalalongline([[-5,5], [0,0], [span[0]+5,span[1]-5]], span[1]-span[0])
@@ -134,10 +134,10 @@ def collateresults(g, obsset, bias, obsntype, directlystatetospec, trueitems, gr
 	# Get the estimated items, and also convert them back to vector representation for easy plotting
 	#estitems = g.extractstates(bias=bias)
 	estitems = g.extractstatesusingintegral(bias=bias)
-	print "estimated %i items present" % len(estitems)
+	print("estimated %i items present" % len(estitems))
 	estspec = [0 for _ in range(span[0], span[1])]
 	for x in estitems:
-		bin = int(round(dot(directlystatetospec, x)))   # project state space directly into spec
+		bin = int(np.round(dot(directlystatetospec, x)))   # project state space directly into spec
 		if bin > -1 and bin < len(estspec):
 			estspec[bin] += 1
 
@@ -151,7 +151,7 @@ def obsFrameToSpecFrame(obsset, obsntype):
 	obsspec = [0 for _ in range(span[0], span[1])]
 	transform = obsntypes[obsntype]['obstospec']
 	for anobs in obsset:
-		bin = int(round(dot(transform, anobs).flat[0]))
+		bin = int(np.round(dot(transform, anobs).flat[0]))
 		if bin > -1 and bin < len(obsspec):
 			obsspec[bin] = 1
 	return obsspec
@@ -176,18 +176,18 @@ def poissonSample(lamb):
 
 def calcroc(gt, ob):
 	"given two binary matrices, groundtruth and observed, returns (FPR, TPR), i.e. an x-y co-ordinate for a ROC plot"
-	print "-=-=-=-=-=-CALCROC-=-=-=-=-=-=-"
-	print gt
-	print ob
+	print("-=-=-=-=-=-CALCROC-=-=-=-=-=-=-")
+	print(gt)
+	print(ob)
 	gt = array(gt) > 0
 	ob = array(ob) > 0
-	print gt
-	print ob
+	print(gt)
+	print(ob)
 	tp = sum(gt & ob)
 	fn = sum(gt & (~ob))
 	fp = sum((~gt) & ob)
 	tn = sum((~gt) & (~ob))
-	print "tp %i, fn %i, fp %i, tn %i" % (tp, fn, fp, tn)
+	print("tp %i, fn %i, fp %i, tn %i" % (tp, fn, fp, tn))
 	tpr = tp/float(tp+fn)
 	fpr = fp/float(fp+tn)
 	return (fpr, tpr)
